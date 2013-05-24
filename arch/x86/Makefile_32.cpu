@@ -58,3 +58,11 @@ cflags-$(CONFIG_FUNCTION_GRAPH_TRACER) += $(call cc-option,-maccumulate-outgoing
 ifneq ($(CONFIG_X86_P6_NOP),y)
 cflags-y			+= $(call cc-option,-Wa$(comma)-mtune=generic32,)
 endif
+
+# Work around to a bug with asm goto with first implementations of it
+# in gcc causing gcc to mess up the push and pop of the stack in some
+# uses of asm goto.
+ifeq ($(CONFIG_JUMP_LABEL), y)
+ADD_ACCUMULATE_OUTGOING_ARGS := y
+endif
+

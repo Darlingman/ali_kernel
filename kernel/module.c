@@ -55,6 +55,7 @@
 #include <linux/async.h>
 #include <linux/percpu.h>
 #include <linux/kmemleak.h>
+#include <linux/jump_label.h>
 #include "module-verify.h"
 
 #define CREATE_TRACE_POINTS
@@ -2406,6 +2407,12 @@ static noinline struct module *load_module(void __user *umod,
 					"__tracepoints",
 					sizeof(*mod->tracepoints),
 					&mod->num_tracepoints);
+#endif
+#ifdef HAVE_JUMP_LABEL
+	mod->jump_entries = section_objs(hdr, sechdrs, secstrings,
+					"__jump_table",
+					sizeof(*mod->jump_entries),
+					&mod->num_jump_entries);
 #endif
 #ifdef CONFIG_EVENT_TRACING
 	mod->trace_events = section_objs(hdr, sechdrs, secstrings,

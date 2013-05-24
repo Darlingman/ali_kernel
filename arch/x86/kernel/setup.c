@@ -1120,6 +1120,9 @@ void __init setup_arch(char **cmdline_p)
 
 	mcheck_init();
 
+#if defined(HAVE_JUMP_LABEL)
+	arch_init_ideal_nop5();
+#endif
 	rh_check_supported();
 }
 

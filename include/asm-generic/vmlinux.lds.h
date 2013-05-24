@@ -156,6 +156,10 @@
 	VMLINUX_SYMBOL(__stop___tracepoints) = .;			\
 	/* implement dynamic printk debug */				\
 	. = ALIGN(8);							\
+	VMLINUX_SYMBOL(__start___jump_table) = .;			\
+	*(__jump_table)							\
+	VMLINUX_SYMBOL(__stop___jump_table) = .;			\
+	. = ALIGN(8);							\
 	VMLINUX_SYMBOL(__start___verbose) = .;                          \
 	*(__verbose)                                                    \
 	VMLINUX_SYMBOL(__stop___verbose) = .;				\
