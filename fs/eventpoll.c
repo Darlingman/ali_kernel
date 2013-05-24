@@ -13,6 +13,7 @@
 
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/file.h>
@@ -1579,6 +1580,160 @@ SYSCALL_DEFINE1(epoll_create, int, size)
 
 	return sys_epoll_create1(0);
 }
+
+struct batch_epoll_ctl_arg {
+	int op;
+	int fd;
+	struct epoll_event event;
+	void *context;
+};
+
+int asmlinkage batch_epoll_ctl(int epfd, struct batch_epoll_ctl_arg *args, int *total)
+{
+	int error;
+	int did_lock_epmutex = 0;
+	struct file *file, *tfile = NULL;
+	struct eventpoll *ep;
+	struct epitem *epi;
+	struct epoll_event epds;
+	struct epoll_event *event;
+	int i = 0, fd, op;
+	int k_total;
+
+	if (copy_from_user(&k_total, total, sizeof(int))) {
+		error = -EFAULT;
+		goto error_return;
+	}
+
+	/* Get the "struct file *" for the eventpoll file */
+	error = -EBADF;
+	file = fget(epfd);
+	if (!file)
+		goto error_return;
+	if (!is_file_epoll(file))
+		goto error_fput;
+	/*
+	 * At this point it is safe to assume that the "private_data" contains
+	 * our own data structure.
+	 */
+	ep = file->private_data;
+	for (i = 0; i < k_total; i++) {
+		op = args[i].op;
+		fd = args[i].fd;
+		event = &args[i].event;
+
+		error = -EFAULT;
+		if (ep_op_has_event(op) &&
+		    copy_from_user(&epds, event, sizeof(struct epoll_event)))
+			goto error_fput;
+
+		/* Get the "struct file *" for the target file */
+		tfile = fget(fd);
+		if (!tfile)
+			goto error_fput;
+
+		/* The target file descriptor must support poll */
+		error = -EPERM;
+		if (!tfile->f_op || !tfile->f_op->poll)
+			goto error_tgt_fput;
+
+		/*
+		 * We have to check that the file structure underneath the file descriptor
+		 * the user passed to us _is_ an eventpoll file. And also we do not permit
+		 * adding an epoll file descriptor inside itself.
+		 */
+		error = -EINVAL;
+		if (file == tfile) {
+			printk("[%d/%d file=tfile]\n", i, k_total-1);
+			goto error_tgt_fput;
+		}
+
+		/*
+		 * When we insert an epoll file descriptor, inside another epoll file
+		 * descriptor, there is the change of creating closed loops, which are
+		 * better be handled here, than in more critical paths. While we are
+		 * checking for loops we also determine the list of files reachable
+		 * and hang them on the tfile_check_list, so we can check that we
+		 * haven't created too many possible wakeup paths.
+		 *
+		 * We need to hold the epmutex across both ep_insert and ep_remove
+		 * b/c we want to make sure we are looking at a coherent view of
+		 * epoll network.
+		 */
+		if (!did_lock_epmutex && (op == EPOLL_CTL_ADD || op == EPOLL_CTL_DEL)) {
+			mutex_lock(&epmutex);
+			did_lock_epmutex = 1;
+		}
+		if ((op == EPOLL_CTL_ADD) && (is_file_epoll(tfile))) {
+			error = -ELOOP;
+			if (ep_loop_check(ep, tfile) != 0) {
+				clear_tfile_check_list();
+				goto error_tgt_fput;
+			}
+		}
+
+		mutex_lock(&ep->mtx);
+
+		/*
+		 * Try to lookup the file inside our RB tree, Since we grabbed "mtx"
+		 * above, we can be sure to be able to use the item looked up by
+		 * ep_find() till we release the mutex.
+		 */
+		epi = ep_find(ep, tfile, fd);
+		error = -EINVAL;
+		switch (op) {
+		case EPOLL_CTL_ADD:
+			if (!epi) {
+				epds.events |= POLLERR | POLLHUP;
+				error = ep_insert(ep, &epds, tfile, fd);
+			} else
+				error = -EEXIST;
+			clear_tfile_check_list();
+			break;
+		case EPOLL_CTL_DEL:
+			if (epi)
+				error = ep_remove(ep, epi);
+			else
+				error = -ENOENT;
+			break;
+		case EPOLL_CTL_MOD:
+			if (epi) {
+				epds.events |= POLLERR | POLLHUP;
+				error = ep_modify(ep, epi, &epds);
+			} else
+				error = -ENOENT;
+			break;
+		default:
+			printk("[%d/%d]ep->op=%d\n", i, k_total - 1, op);
+		}
+		mutex_unlock(&ep->mtx);
+
+		if (error)
+			printk("[%d/%d]return = %d\n", i, k_total -1, error);
+
+error_tgt_fput:
+		fput(tfile);
+		if (error)
+			goto error_fput;
+		if (did_lock_epmutex) {
+			mutex_unlock(&epmutex);
+			did_lock_epmutex = 0;
+		}
+	}
+
+error_fput:
+	fput(file);
+error_return:
+	if (did_lock_epmutex)
+		mutex_unlock(&epmutex);
+
+	if (copy_to_user(total, &i, sizeof(int)))
+		error = -EFAULT;	/* FIXME */
+	if (error)
+		printk("batch_epoll_ctl() return %d\n", error);
+	return error;
+}
+EXPORT_SYMBOL(batch_epoll_ctl);
 
 /*
  * The following function implements the controller interface for

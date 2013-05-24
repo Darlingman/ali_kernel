@@ -1488,6 +1488,92 @@ SYSCALL_DEFINE2(listen, int, fd, int, backlog)
 	return err;
 }
 
+struct batch_accept4_arg {
+	int fd;
+	int peer_addrlen;
+	struct sockaddr peer;
+};
+
+int asmlinkage batch_accept4(int fd, struct batch_accept4_arg *args, int total, int flags)
+{
+	struct socket *sock, *newsock;
+	struct file *newfile;
+	int err, newfd, fput_needed;
+	int i = 0;
+	int k_peer_addrlen;
+	struct sockaddr k_peer;
+
+	if (flags & ~(SOCK_CLOEXEC | SOCK_NONBLOCK))
+		return -EINVAL;
+
+	if (SOCK_NONBLOCK != O_NONBLOCK && (flags & SOCK_NONBLOCK))
+		flags = (flags & ~SOCK_NONBLOCK) | O_NONBLOCK;
+
+	sock = sockfd_lookup_light(fd, &err, &fput_needed);
+	if (!sock)
+		goto out;
+
+	for (i = 0; i < total; i++) {
+		err = -ENFILE;
+		if (!(newsock = sock_alloc()))
+			goto out_put;
+
+		newsock->type = sock->type;
+		newsock->ops = sock->ops;
+
+		/*
+		 * We don't need try_module_get here, as the listening socket (sock)
+		 * has the protocol module (sock->ops->owner) held.
+		 */
+		__module_get(newsock->ops->owner);
+
+		newfd = sock_alloc_file(newsock, &newfile, flags);
+		if (unlikely(newfd < 0)) {
+			err = newfd;
+			sock_release(newsock);
+			goto out_put;
+		}
+
+		err = security_socket_accept(sock, newsock);
+		if (err)
+			goto out_fd;
+
+		err = sock->ops->accept(sock, newsock, sock->file->f_flags);
+		if (err < 0)
+			goto out_fd;
+
+		if (newsock->ops->getname(newsock,
+					&k_peer, &k_peer_addrlen, 2) < 0) {
+			err = -ECONNABORTED;
+			goto out_fd;
+		}
+
+		if (copy_to_user(&args[i].peer, &k_peer, sizeof(k_peer))) {
+			err = -EFAULT;
+			goto out_fd;
+		}
+
+		if (copy_to_user(&args[i].peer_addrlen, &k_peer_addrlen, sizeof(int))) {
+			err = -EFAULT;
+			goto out_fd;
+		}
+
+		/* File flags are not inherited via accept() unlike another OSes. */
+		fd_install(newfd, newfile);
+		args[i].fd = newfd;
+	}
+	err = 0;
+out_put:
+	fput_light(sock->file, fput_needed);
+out:
+	return i > 0 ? i : err;
+out_fd:
+	fput(newfile);
+	put_unused_fd(newfd);
+	goto out_put;
+}
+EXPORT_SYMBOL(batch_accept4);
+
 /*
  *	For accept, we attempt to create a new socket, set up the link
  *	with the client, wake up the client, then return the new
