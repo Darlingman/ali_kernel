@@ -483,6 +483,64 @@ static void sk_filter_delayed_uncharge(struct sock *sk, struct sk_filter *fp)
 	call_rcu_bh(&fp->rcu, sk_filter_rcu_release);
 }
 
+static int __sk_prepare_filter(struct sk_filter *fp)
+{
+	int err;
+
+	err = sk_chk_filter(fp->insns, fp->len);
+	if (err)
+		return err;
+
+	return 0;
+}
+
+/**
+ *	sk_unattached_filter_create - create an unattached filter
+ *	@fprog: the filter program
+ *	@sk: the socket to use
+ *
+ * Create a filter independent ofr any socket. We first run some
+ * sanity checks on it to make sure it does not explode on us later.
+ * If an error occurs or there is insufficient memory for the filter
+ * a negative errno code is returned. On success the return is zero.
+ */
+int sk_unattached_filter_create(struct sk_filter **pfp,
+				struct sock_fprog *fprog)
+{
+	struct sk_filter *fp;
+	unsigned int fsize = sizeof(struct sock_filter) * fprog->len;
+	int err;
+
+	/* Make sure new filter is there and in the right amounts. */
+	if (fprog->filter == NULL)
+		return -EINVAL;
+
+	fp = kmalloc(fsize + sizeof(*fp), GFP_KERNEL);
+	if (!fp)
+		return -ENOMEM;
+	memcpy(fp->insns, fprog->filter, fsize);
+
+	atomic_set(&fp->refcnt, 1);
+	fp->len = fprog->len;
+
+	err = __sk_prepare_filter(fp);
+	if (err)
+		goto free_mem;
+
+	*pfp = fp;
+	return 0;
+free_mem:
+	kfree(fp);
+	return err;
+}
+EXPORT_SYMBOL_GPL(sk_unattached_filter_create);
+
+void sk_unattached_filter_destroy(struct sk_filter *fp)
+{
+	sk_filter_release(fp);
+}
+EXPORT_SYMBOL_GPL(sk_unattached_filter_destroy);
+
 /**
  *	sk_attach_filter - attach a socket filter
  *	@fprog: the filter program
@@ -514,7 +572,7 @@ int sk_attach_filter(struct sock_fprog *fprog, struct sock *sk)
 	atomic_set(&fp->refcnt, 1);
 	fp->len = fprog->len;
 
-	err = sk_chk_filter(fp->insns, fp->len);
+	err = __sk_prepare_filter(fp);
 	if (err) {
 		sk_filter_uncharge(sk, fp);
 		return err;
