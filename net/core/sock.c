@@ -286,7 +286,18 @@ static void sock_disable_timestamp(struct sock *sk, int flag)
 	}
 }
 
+static int sock_update_cpu(struct sock *sk, int cpu)
+{
+	int ret = 0;
 
+	if ((cpu < 0) || (cpu >= 0 && cpu_online(cpu)))
+		__sk_cpu(sk) = cpu < 0 ? -1 : cpu;
+	else
+		ret = -EINVAL;
+	return ret;
+}
+
+/* This assumes that the input sock is unhashed yet */
 int sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 {
 	int err = 0;
@@ -513,6 +524,9 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 		break;
 	case SO_REUSEPORT:
 		sk->sk_reuseport = valbool;
+		break;
+	case SO_BINDCPU:
+		ret = sock_update_cpu(sk, val);
 		break;
 	case SO_TYPE:
 	case SO_PROTOCOL:
@@ -799,6 +813,10 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 
 	case SO_REUSEPORT:
 		v.val = sk->sk_reuseport;
+		break;
+
+	case SO_BINDCPU:
+		v.val = __sk_cpu(sk);
 		break;
 
 	case SO_KEEPALIVE:
@@ -1114,6 +1132,7 @@ struct sock *sk_alloc(struct net *net, int family, gfp_t priority,
 		sock_lock_init(sk);
 		sock_net_set(sk, get_net(net));
 		atomic_set(&sk->sk_wmem_alloc, 1);
+		__sk_cpu(sk) = -1;
 
 		sock_update_classid(sk);
 		sock_update_netprioidx(sk);
@@ -1196,6 +1215,7 @@ struct sock *sk_clone(const struct sock *sk, const gfp_t priority)
 		bh_lock_sock(newsk);
 		newsk->sk_backlog.head	= newsk->sk_backlog.tail = NULL;
 		sk_extended(newsk)->sk_backlog.len = 0;
+		__sk_cpu(newsk) = __sk_cpu(sk);
 
 		atomic_set(&newsk->sk_rmem_alloc, 0);
 		/*

@@ -150,6 +150,7 @@ static inline int compute_score(struct sock *sk, struct net *net,
 				const int dif)
 {
 	int score = -1;
+	int cpu = smp_processor_id();
 	struct inet_sock *inet = inet_sk(sk);
 
 	if (net_eq(sock_net(sk), net) && inet->num == hnum &&
@@ -166,6 +167,8 @@ static inline int compute_score(struct sock *sk, struct net *net,
 				return -1;
 			score += 4;
 		}
+		if (cpu == __sk_cpu(sk))
+			score += 4;
 	}
 	return score;
 }

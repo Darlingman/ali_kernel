@@ -320,9 +320,11 @@ struct sock_extended {
 	/*
 	 * Expansion for the sock common structure
 	 *	@skc_tx_queue_mapping: tx queue number for this connection
+	 *	@skc_cpu:
 	 */
 	struct {
 		int			skc_tx_queue_mapping;
+		int			skc_cpu;
 	} __sk_common_extended;
 
 	/*
@@ -358,6 +360,8 @@ struct sock_extended {
 
 #define __sk_tx_queue_mapping(sk) \
 	sk_extended(sk)->__sk_common_extended.skc_tx_queue_mapping
+#define __sk_cpu(sk) \
+	sk_extended(sk)->__sk_common_extended.skc_cpu
 
 #define SOCK_EXTENDED_SIZE ALIGN(sizeof(struct sock_extended), sizeof(long))
 static inline struct sock_extended *sk_extended(const struct sock *sk);
