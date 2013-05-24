@@ -306,6 +306,14 @@ void __tcp_estats_establish(struct sock *sk)
 	vars->MaxRetranThresh = tp->reordering;
 	vars->RecInitial = tp->rcv_nxt;
 
+	vars->InitCwnd = tp->snd_cwnd;
+	vars->InitCwndClamp = tp->snd_cwnd_clamp;
+	vars->InitSsthresh = tp->snd_ssthresh;
+	vars->InitReordering = tp->reordering;
+	vars->InitSRTT = tp->srtt;
+	vars->InitRTTVar = tp->rttvar;
+
+
 	stats_link(stats);
 
 	tcp_estats_update_sndlim(tp, TCP_ESTATS_SNDLIM_SENDER);
@@ -1229,6 +1237,14 @@ struct tcp_estats_var tcp_estats_var_table[] = {
 	 .read_data = OFFSET_SK(sk_rcvbuf),
 	 .write = write_Rcvbuf,
 	 },
+
+	STATSVAR(InitCwnd, COUNTER32),
+	STATSVAR(InitCwndClamp, COUNTER32),
+	STATSVAR(InitSsthresh, COUNTER32),
+	STATSVAR(InitReordering, COUNTER32),
+	STATSVAR(InitSRTT, COUNTER32),
+	STATSVAR(InitRTTVar, COUNTER32),
+
 	{.name = NULL}
 };
 

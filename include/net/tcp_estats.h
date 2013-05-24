@@ -264,6 +264,13 @@ struct tcp_estats_directs {
 	/* Extras */
 	u32		OtherReductionsCV;
 	u32		OtherReductionsCM;
+
+	u32		InitCwnd;
+	u32		InitCwndClamp;
+	u32		InitSsthresh;
+	u32		InitReordering;
+	u32		InitSRTT;
+	u32		InitRTTVar;
 };
 
 struct tcp_estats {
