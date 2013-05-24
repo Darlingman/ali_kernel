@@ -1007,6 +1007,11 @@ extern int proc_doulongvec_ms_jiffies_minmax(struct ctl_table *table, int,
 				      void __user *, size_t *, loff_t *);
 extern int proc_do_large_bitmap(struct ctl_table *, int,
 				void __user *, size_t *, loff_t *);
+#ifdef CONFIG_TCP_ESTATS
+extern int tcp_estats_proc_dointvec_update(ctl_table *, int, void *,
+					   size_t *, loff_t *);
+#endif
+
 
 extern int do_sysctl (int __user *name, int nlen,
 		      void __user *oldval, size_t __user *oldlenp,

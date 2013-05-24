@@ -652,3 +652,60 @@ config TCP_MD5SIG
 
 	  If unsure, say N.
 
+config TCP_ESTATS
+	bool "TCP: Extended TCP statistics (TCP ESTATS) MIB"
+	depends on PROC_FS
+	---help---
+	  Support for the TCP extended stastics MIB
+	  (see http://www.web100.org/mib/).
+
+if TCP_ESTATS
+
+config TCP_ESTATS_MAX_CONNS
+	int "TCP: Maximum number of ESTATS conections"
+	depends on TCP_ESTATS
+	default 32768
+	---help---
+	  The maximum number of TCP connections for which we concurrently
+	  save extended statistics.  The stats consume extra memory per
+	  connection, so this helps limit the amount of total memory
+	  devoted to statistics.  It also bounds the time for user-mode
+	  tools to search for a particular connection.
+
+	  If this number is too small, it will not limit creation of TCP
+	  connections, but some connections will not have extended
+	  stats.
+
+config TCP_ESTATS_FPERMS
+	int "TCP: ESTATS default file permissions"
+	depends on TCP_ESTATS
+	default "384"
+	---help---
+	  This controls the default file permission bits on the ESTATS
+	  files in /proc/web100.  This value can be changed at runtime using
+	  the sysctl variable net.ipv4.tcp_eststs_fperms.  Unless all users on
+	  the system are trusted, it is safest to limit both readability
+	  and writability to trusted users.
+
+	  Due to limitations of the kernel config scripts, this is a decimal
+	  value rather than octal.  Some common values:
+
+	    384 = 0600 = rw-------
+	    416 = 0640 = rw-r-----
+	    432 = 0660 = rw-rw----
+	    436 = 0664 = rw-rw-r--
+	    438 = 0666 = rw-rw-rw-
+
+config TCP_ESTATS_GID
+	int "TCP: ESTATS default gid"
+	depends on TCP_ESTATS
+	default "0"
+	---help---
+	  This will be the default group of the ESTATS files in /proc/web100.
+	  It may be useful to create a "tcp_estats" group on your system, and set
+	  CONFIG_TCP_ESTATS_FPERMS (above) with special group permissions.  This
+	  value can be changed at runtime using the sysctl variable
+	  net.ipv4.tcp_estats_gid.
+
+endif
+

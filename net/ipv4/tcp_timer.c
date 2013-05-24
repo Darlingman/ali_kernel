@@ -322,6 +322,8 @@ void tcp_retransmit_timer(struct sock *sk)
 			goto out;
 		}
 		tcp_enter_loss(sk, 0);
+		if (!icsk->icsk_backoff)
+			TCP_ESTATS_UPDATE(tp, tcp_estats_update_timeout(sk));
 		tcp_retransmit_skb(sk, tcp_write_queue_head(sk));
 		__sk_dst_reset(sk);
 		goto out_reset_timer;
@@ -357,6 +359,8 @@ void tcp_retransmit_timer(struct sock *sk)
 		tcp_enter_loss(sk, 0);
 	}
 
+	if (!icsk->icsk_backoff)
+		TCP_ESTATS_UPDATE(tp, tcp_estats_update_timeout(sk));
 	if (tcp_retransmit_skb(sk, tcp_write_queue_head(sk)) > 0) {
 		/* Retransmission failed because of local congestion,
 		 * do not backoff.

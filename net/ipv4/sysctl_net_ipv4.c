@@ -838,6 +838,44 @@ static struct ctl_table ipv4_net_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec
 	},
+#ifdef CONFIG_TCP_ESTATS
+	{
+		.procname	= "tcp_estats_max_conns",
+		.data		= &sysctl_tcp_estats_max_conns,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler   = &tcp_estats_proc_dointvec_update,
+	},
+	{
+		.procname       = "tcp_estats_enabled",
+		.data           = &sysctl_tcp_estats_enabled,
+		.maxlen         = sizeof(int),
+		.mode           = 0644,
+		.proc_handler   = &tcp_estats_proc_dointvec_update,
+	},
+	{
+		.procname	= "tcp_estats_only_for",
+		.data		= &sysctl_tcp_estats_only_for,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler   = proc_dointvec
+	},
+
+	{
+		.procname	= "tcp_estats_fperms",
+		.data		= &sysctl_tcp_estats_fperms,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler   = &tcp_estats_proc_dointvec_update,
+	},
+	{
+		.procname	= "tcp_estats_gid",
+		.data		= &sysctl_tcp_estats_gid,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= &tcp_estats_proc_dointvec_update,
+	},
+#endif
 	{ }
 };
 

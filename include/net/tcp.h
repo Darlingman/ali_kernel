@@ -42,6 +42,7 @@
 #include <net/tcp_states.h>
 #include <net/inet_ecn.h>
 #include <net/dst.h>
+#include <net/tcp_estats.h>
 
 #include <linux/seq_file.h>
 
@@ -255,6 +256,13 @@ extern int sysctl_tcp_slow_start_after_idle;
 extern int sysctl_tcp_max_ssthresh;
 extern int sysctl_tcp_thin_linear_timeouts;
 extern int sysctl_tcp_thin_dupack;
+#ifdef CONFIG_TCP_ESTATS
+extern int sysctl_tcp_estats_max_conns;
+extern int sysctl_tcp_estats_only_for;
+extern int sysctl_tcp_estats_enabled;
+extern int sysctl_tcp_estats_fperms;
+extern int sysctl_tcp_estats_gid;
+#endif
 
 extern atomic_t tcp_memory_allocated;
 extern struct percpu_counter tcp_sockets_allocated;
@@ -300,6 +308,7 @@ static inline int tcp_synq_no_recent_overflow(const struct sock *sk)
 extern struct proto tcp_prot;
 
 #define TCP_INC_STATS(net, field)	SNMP_INC_STATS((net)->mib.tcp_statistics, field)
+#define TCP_ADD_STATS(net, field, addend)	SNMP_ADD_STATS((net)->mib.tcp_statistics, field, addend)
 #define TCP_INC_STATS_BH(net, field)	SNMP_INC_STATS_BH((net)->mib.tcp_statistics, field)
 #define TCP_DEC_STATS(net, field)	SNMP_DEC_STATS((net)->mib.tcp_statistics, field)
 #define TCP_ADD_STATS_USER(net, field, val) SNMP_ADD_STATS_USER((net)->mib.tcp_statistics, field, val)
@@ -751,6 +760,7 @@ static inline void tcp_set_ca_state(struct sock *sk, const u8 ca_state)
 	if (icsk->icsk_ca_ops->set_state)
 		icsk->icsk_ca_ops->set_state(sk, ca_state);
 	icsk->icsk_ca_state = ca_state;
+	TCP_ESTATS_UPDATE(tcp_sk(sk), tcp_estats_update_ca_state(sk, ca_state));
 }
 
 static inline void tcp_ca_event(struct sock *sk, const enum tcp_ca_event event)
