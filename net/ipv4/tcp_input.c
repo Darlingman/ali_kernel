@@ -71,6 +71,8 @@
 #include <linux/ipsec.h>
 #include <asm/unaligned.h>
 #include <net/netdma.h>
+#include <linux/skbtrace.h>
+#include <trace/events/skbtrace_ipv4.h>
 
 int sysctl_tcp_timestamps __read_mostly = 1;
 int sysctl_tcp_window_scaling __read_mostly = 1;
@@ -813,6 +815,7 @@ void tcp_update_metrics(struct sock *sk)
 				dst->metrics[RTAX_REORDERING-1] = tp->reordering;
 		}
 	}
+	trace_tcp_congestion(sk, skbtrace_tcp_cong_cwr);
 }
 
 __u32 tcp_init_cwnd(struct tcp_sock *tp, struct dst_entry *dst)
@@ -2117,6 +2120,7 @@ void tcp_enter_frto(struct sock *sk)
 	tcp_set_ca_state(sk, TCP_CA_Disorder);
 	tp->high_seq = tp->snd_nxt;
 	tp->frto_counter = 1;
+	trace_tcp_congestion(sk, skbtrace_tcp_cong_frto);
 }
 
 /* Enter Loss state after F-RTO was applied. Dupack arrived after RTO,
@@ -2184,6 +2188,7 @@ static void tcp_enter_frto_loss(struct sock *sk, int allowed_segments, int flag)
 	TCP_ECN_queue_cwr(tp);
 
 	tcp_clear_all_retrans_hints(tp);
+	trace_tcp_congestion(sk, skbtrace_tcp_cong_frto_loss);
 }
 
 static void tcp_clear_retrans_partial(struct tcp_sock *tp)
@@ -2212,6 +2217,8 @@ void tcp_enter_loss(struct sock *sk, int how)
 	const struct inet_connection_sock *icsk = inet_csk(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct sk_buff *skb;
+
+	trace_tcp_congestion(sk, skbtrace_tcp_cong_loss);
 
 	/* Reduce ssthresh if it has not yet been made inside this window. */
 	if (icsk->icsk_ca_state <= TCP_CA_Disorder || tp->snd_una == tp->high_seq ||
@@ -3105,6 +3112,7 @@ static void tcp_fastretrans_alert(struct sock *sk, int pkts_acked,
 		tp->prr_delivered = 0;
 		tp->prr_out = 0;
 		tcp_set_ca_state(sk, TCP_CA_Recovery);
+		trace_tcp_congestion(sk, skbtrace_tcp_cong_fastrtx);
 		fast_rexmit = 1;
 	}
 
@@ -3118,6 +3126,7 @@ static void tcp_fastretrans_alert(struct sock *sk, int pkts_acked,
 void tcp_valid_rtt_meas(struct sock *sk, u32 seq_rtt)
 {
 	tcp_rtt_estimator(sk, seq_rtt);
+	trace_tcp_rttm(sk, seq_rtt);
 	tcp_set_rto(sk);
 	inet_csk(sk)->icsk_backoff = 0;
 }

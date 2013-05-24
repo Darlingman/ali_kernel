@@ -13,6 +13,8 @@
 #include <net/inet_hashtables.h>
 #include <net/inet_timewait_sock.h>
 #include <net/ip.h>
+#include <linux/skbtrace.h>
+#include <trace/events/skbtrace_ipv4.h>
 
 /* Must be called with locally disabled BHs. */
 static void __inet_twsk_kill(struct inet_timewait_sock *tw,
@@ -57,6 +59,7 @@ static noinline void inet_twsk_free(struct inet_timewait_sock *tw)
 #ifdef SOCK_REFCNT_DEBUG
 	pr_debug("%s timewait_sock %p released\n", tw->tw_prot->name, tw);
 #endif
+	skbtrace_context_destroy(&tw->tw_skbtrace);
 	release_net(twsk_net(tw));
 	kmem_cache_free(tw->tw_prot->twsk_prot->twsk_slab, tw);
 	module_put(owner);
@@ -138,10 +141,15 @@ struct inet_timewait_sock *inet_twsk_alloc(const struct sock *sk, const int stat
 		tw->tw_ipv6only	    = 0;
 		tw->tw_transparent  = inet->transparent;
 		tw->tw_prot	    = sk->sk_prot_creator;
+		tw->tw_skbtrace_fid = 0;
+#if HAVE_SKBTRACE
+		tw->tw_skbtrace     = NULL;
+#endif
 		twsk_net_set(tw, hold_net(sock_net(sk)));
 		atomic_set(&tw->tw_refcnt, 1);
 		inet_twsk_dead_node_init(tw);
 		__module_get(tw->tw_prot->owner);
+		trace_tcp_connection(tw, state + TCP_MAX_STATES);
 	}
 
 	return tw;

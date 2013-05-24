@@ -57,6 +57,7 @@
 #include <linux/init.h>
 #include <linux/scatterlist.h>
 #include <linux/errqueue.h>
+#include <linux/skbtrace.h>
 
 #include <net/protocol.h>
 #include <net/dst.h>
@@ -626,6 +627,10 @@ static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old)
 	new->deliver_no_wcard	= old->deliver_no_wcard;
 #if defined(CONFIG_IP_VS) || defined(CONFIG_IP_VS_MODULE)
 	new->ipvs_property	= old->ipvs_property;
+#endif
+#if HAVE_SKBTRACE
+	new->hit_skbtrace       = old->hit_skbtrace;
+	new->skbtrace_filtered  = old->skbtrace_filtered;
 #endif
 	new->protocol		= old->protocol;
 	new->mark		= old->mark;

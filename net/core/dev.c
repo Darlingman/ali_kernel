@@ -131,6 +131,8 @@
 #include <trace/events/napi.h>
 #include <trace/events/net.h>
 #include <trace/events/skb.h>
+#include <trace/events/skbtrace_common.h>
+#include <linux/skbtrace.h>
 #endif
 
 #include "net-sysfs.h"
@@ -2374,6 +2376,7 @@ got_hash:
 
 done:
 	rcu_read_unlock();
+	trace_skb_rps_info(skb, dev, cpu);
 	return cpu;
 }
 

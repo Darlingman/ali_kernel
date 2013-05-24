@@ -55,6 +55,7 @@ extern int			datagram_send_ctl(struct net *net,
  */
 extern struct inet_connection_sock_af_ops ipv6_mapped;
 extern struct inet_connection_sock_af_ops ipv4_specific;
+extern struct inet_connection_sock_af_ops ipv6_mapped;
 
 extern void inet6_destroy_sock(struct sock *sk);
 

@@ -275,6 +275,9 @@
 #include <asm/uaccess.h>
 #include <asm/ioctls.h>
 
+#include <linux/skbtrace.h>
+#include <trace/events/skbtrace_ipv4.h>
+
 int sysctl_tcp_fin_timeout __read_mostly = TCP_FIN_TIMEOUT;
 
 int sysctl_tcp_tw_timeout __read_mostly = TCP_TIMEWAIT_LEN;
@@ -1781,6 +1784,8 @@ void tcp_set_state(struct sock *sk, int state)
 		if (oldstate == TCP_ESTABLISHED)
 			TCP_DEC_STATS(sock_net(sk), TCP_MIB_CURRESTAB);
 	}
+
+	trace_tcp_connection(sk, state);
 
 	/* Change state AFTER socket is unhashed to avoid closed
 	 * socket sitting in hash tables.

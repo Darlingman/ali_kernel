@@ -587,6 +587,8 @@ extern void			ipv6_local_error(struct sock *sk, int err, struct flowi *fl, u32 i
 extern int inet6_release(struct socket *sock);
 extern int inet6_bind(struct socket *sock, struct sockaddr *uaddr, 
 		      int addr_len);
+extern int inet6_sock_getname(struct sock *sk, struct sockaddr *uaddr,
+			 int *uaddr_len, int peer);
 extern int inet6_getname(struct socket *sock, struct sockaddr *uaddr,
 			 int *uaddr_len, int peer);
 extern int inet6_ioctl(struct socket *sock, unsigned int cmd, 

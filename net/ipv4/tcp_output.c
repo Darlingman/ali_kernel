@@ -39,6 +39,9 @@
 #include <linux/compiler.h>
 #include <linux/module.h>
 
+#include <linux/skbtrace.h>
+#include <trace/events/skbtrace_ipv4.h>
+
 /* People can turn this off for buggy TCP's found in printers etc. */
 int sysctl_tcp_retrans_collapse __read_mostly = 1;
 
@@ -623,6 +626,8 @@ static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it,
 	int err;
 
 	BUG_ON(!skb || !tcp_skb_pcount(skb));
+
+	trace_tcp_active_conn(sk);
 
 	/* If congestion control is doing timestamping, we must
 	 * take such a timestamp before we potentially clone/copy.
@@ -1449,15 +1454,18 @@ static int tcp_mtu_probe(struct sock *sk)
 
 	if (tp->snd_wnd < size_needed)
 		return -1;
-	if (after(tp->snd_nxt + size_needed, tcp_wnd_end(tp)))
+	if (after(tp->snd_nxt + size_needed, tcp_wnd_end(tp))) {
+		trace_tcp_sendlimit(sk, skbtrace_tcp_sndlim_swnd, 1);
 		return 0;
-
+	}
 	/* Do we need to wait to drain cwnd? With none in flight, don't stall */
 	if (tcp_packets_in_flight(tp) + 2 > tp->snd_cwnd) {
 		if (!tcp_packets_in_flight(tp))
 			return -1;
-		else
+		else {
+			trace_tcp_sendlimit(sk, skbtrace_tcp_sndlim_cwnd, 1);
 			return 0;
+		}
 	}
 
 	/* We're allowed to probe.  Build it now. */
@@ -1552,7 +1560,7 @@ static int tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 	struct sk_buff *skb;
 	unsigned int tso_segs, sent_pkts;
 	int cwnd_quota;
-	int result;
+	int result, retval, sndlim;
 
 	sent_pkts = 0;
 
@@ -1566,6 +1574,8 @@ static int tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 		}
 	}
 
+	sndlim = skbtrace_tcp_sndlim_ok;
+	result = 0;
 	while ((skb = tcp_send_head(sk))) {
 		unsigned int limit;
 
@@ -1573,20 +1583,28 @@ static int tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 		BUG_ON(!tso_segs);
 
 		cwnd_quota = tcp_cwnd_test(tp, skb);
-		if (!cwnd_quota)
+		if (!cwnd_quota) {
+			sndlim = skbtrace_tcp_sndlim_cwnd;
 			break;
+		}
 
-		if (unlikely(!tcp_snd_wnd_test(tp, skb, mss_now)))
+		if (unlikely(!tcp_snd_wnd_test(tp, skb, mss_now))) {
+			sndlim = skbtrace_tcp_sndlim_swnd;
 			break;
+		}
 
 		if (tso_segs == 1) {
 			if (unlikely(!tcp_nagle_test(tp, skb, mss_now,
 						     (tcp_skb_is_last(sk, skb) ?
-						      nonagle : TCP_NAGLE_PUSH))))
+						      nonagle : TCP_NAGLE_PUSH)))) {
+				sndlim = skbtrace_tcp_sndlim_nagle;
 				break;
+			}
 		} else {
-			if (!push_one && tcp_tso_should_defer(sk, skb))
+			if (!push_one && tcp_tso_should_defer(sk, skb)) {
+				sndlim = skbtrace_tcp_sndlim_tso;
 				break;
+			}
 		}
 
 		limit = mss_now;
@@ -1595,13 +1613,18 @@ static int tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 						    cwnd_quota);
 
 		if (skb->len > limit &&
-		    unlikely(tso_fragment(sk, skb, limit, mss_now)))
+		    unlikely(tso_fragment(sk, skb, limit, mss_now))) {
+			sndlim = skbtrace_tcp_sndlim_frag;
 			break;
+		}
 
 		TCP_SKB_CB(skb)->when = tcp_time_stamp;
 
-		if (unlikely(tcp_transmit_skb(sk, skb, 1, gfp)))
+		result = tcp_transmit_skb(sk, skb, 1, gfp);
+		if (unlikely(result)) {
+			sndlim = skbtrace_tcp_sndlim_other;
 			break;
+		}
 
 		/* Advance the send_head.  This one is sent out.
 		 * This call will increment packets_out.
@@ -1611,17 +1634,25 @@ static int tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 		tcp_minshall_update(tp, mss_now, skb);
 		sent_pkts += tcp_skb_pcount(skb);
 
-		if (push_one)
+		if (push_one) {
+			sndlim = skbtrace_tcp_sndlim_pushone;
 			break;
+		}
 	}
 	if (inet_csk(sk)->icsk_ca_state == TCP_CA_Recovery)
 		tp->prr_out += sent_pkts;
 
-	if (likely(sent_pkts)) {
-		tcp_cwnd_validate(sk);
-		return 0;
-	}
-	return !tp->packets_out && tcp_send_head(sk);
+        if (likely(sent_pkts)) {
+                trace_tcp_sendlimit(sk, skbtrace_tcp_sndlim_ok, sent_pkts);
+                tcp_cwnd_validate(sk);
+                retval = false;
+        } else
+                retval = !tp->packets_out && tcp_send_head(sk);
+
+        if (skbtrace_tcp_sndlim_ok != sndlim)
+                trace_tcp_sendlimit(sk, sndlim, result);
+
+        return retval;
 }
 
 /* Push out any pending frames which were held back due to

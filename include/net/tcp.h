@@ -42,6 +42,7 @@
 #include <net/tcp_states.h>
 #include <net/inet_ecn.h>
 #include <net/dst.h>
+#include <trace/events/skbtrace_ipv4.h>
 
 #include <linux/seq_file.h>
 
@@ -751,6 +752,7 @@ static inline void tcp_set_ca_state(struct sock *sk, const u8 ca_state)
 	if (icsk->icsk_ca_ops->set_state)
 		icsk->icsk_ca_ops->set_state(sk, ca_state);
 	icsk->icsk_ca_state = ca_state;
+	trace_tcp_ca_state(sk, ca_state);
 }
 
 static inline void tcp_ca_event(struct sock *sk, const enum tcp_ca_event event)

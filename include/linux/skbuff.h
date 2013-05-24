@@ -426,6 +426,10 @@ struct sk_buff {
 #endif
 #ifndef __GENKSYMS__
 	__u8			ooo_okay:1;
+#if defined(CONFIG_SKBTRACE) || defined(CONFIG_SKBTRACE_MODULE)
+	__u8			hit_skbtrace:1;
+	__u8			skbtrace_filtered:1;
+#endif
 #endif
 	kmemcheck_bitfield_end(flags2);
 

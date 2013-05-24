@@ -127,8 +127,10 @@
 #include <net/netprio_cgroup.h>
 
 #include <linux/filter.h>
+#include <linux/skbtrace.h>
 
 #include <trace/events/sock.h>
+#include <trace/events/skbtrace_common.h>
 
 #ifdef CONFIG_INET
 #include <net/tcp.h>
@@ -1110,6 +1112,7 @@ struct sock *sk_alloc(struct net *net, int family, gfp_t priority,
 
 		sock_update_classid(sk);
 		sock_update_netprioidx(sk);
+		sock_skbtrace_reset(sk);
 	}
 
 	return sk;
@@ -1131,6 +1134,8 @@ static void __sk_free(struct sock *sk)
 
 	sock_disable_timestamp(sk, SOCK_TIMESTAMP);
 	sock_disable_timestamp(sk, SOCK_TIMESTAMPING_RX_SOFTWARE);
+
+	skbtrace_context_destroy(&sk->sk_skbtrace);
 
 	if (atomic_read(&sk->sk_omem_alloc))
 		printk(KERN_DEBUG "%s: optmem leakage (%d bytes) detected.\n",
@@ -1260,6 +1265,8 @@ struct sock *sk_clone(const struct sock *sk, const gfp_t priority)
 		if (sock_flag(newsk, SOCK_TIMESTAMP) ||
 		    sock_flag(newsk, SOCK_TIMESTAMPING_RX_SOFTWARE))
 			net_enable_timestamp();
+
+		sock_skbtrace_reset(newsk);
 	}
 out:
 	return newsk;
@@ -1910,6 +1917,7 @@ void sk_reset_timer(struct sock *sk, struct timer_list* timer,
 {
 	if (!mod_timer(timer, expires))
 		sock_hold(sk);
+	trace_sk_timer(sk, timer, skbtrace_sk_timer_reset);
 }
 EXPORT_SYMBOL(sk_reset_timer);
 
@@ -1917,6 +1925,7 @@ void sk_stop_timer(struct sock *sk, struct timer_list* timer)
 {
 	if (timer_pending(timer) && del_timer(timer))
 		__sock_put(sk);
+	trace_sk_timer(sk, timer, skbtrace_sk_timer_stop);
 }
 EXPORT_SYMBOL(sk_stop_timer);
 

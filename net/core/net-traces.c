@@ -19,6 +19,7 @@
 #include <linux/workqueue.h>
 #include <linux/netlink.h>
 #include <linux/net_dropmon.h>
+#include <linux/skbtrace.h>
 
 #include <asm/unaligned.h>
 #include <asm/bitops.h>
@@ -29,7 +30,30 @@
 #include <trace/events/napi.h>
 #include <trace/events/sock.h>
 #include <trace/events/udp.h>
+#include <trace/events/skbtrace.h>
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(kfree_skb);
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(napi_poll);
+
+#if HAVE_SKBTRACE
+
+#define NEW_SKBTRACE_TP(name) \
+	DEFINE_TRACE(name); \
+	EXPORT_TRACEPOINT_SYMBOL_GPL(name);
+
+NEW_SKBTRACE_TP(skb_rps_info);
+NEW_SKBTRACE_TP(sk_timer);
+
+NEW_SKBTRACE_TP(tcp_congestion);
+NEW_SKBTRACE_TP(tcp_connection);
+NEW_SKBTRACE_TP(icsk_connection);
+NEW_SKBTRACE_TP(tcp_sendlimit);
+NEW_SKBTRACE_TP(tcp_active_conn);
+NEW_SKBTRACE_TP(tcp_rttm);
+NEW_SKBTRACE_TP(tcp_ca_state);
+
+unsigned long skbtrace_session;
+EXPORT_SYMBOL(skbtrace_session);
+
+#endif

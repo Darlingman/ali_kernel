@@ -15,6 +15,9 @@
 
 #include <linux/module.h>
 #include <linux/jhash.h>
+#include <linux/skbtrace.h>
+#include <trace/events/skbtrace_common.h>
+#include <trace/events/skbtrace_ipv4.h>
 
 #include <net/inet_connection_sock.h>
 #include <net/inet_hashtables.h>
@@ -325,9 +328,16 @@ void inet_csk_init_xmit_timers(struct sock *sk,
 
 	setup_timer(&icsk->icsk_retransmit_timer, retransmit_handler,
 			(unsigned long)sk);
+	trace_sk_timer(sk, &icsk->icsk_retransmit_timer,
+						skbtrace_sk_timer_setup);
+
 	setup_timer(&icsk->icsk_delack_timer, delack_handler,
 			(unsigned long)sk);
+	trace_sk_timer(sk, &icsk->icsk_delack_timer, skbtrace_sk_timer_setup);
+
 	setup_timer(&sk->sk_timer, keepalive_handler, (unsigned long)sk);
+	trace_sk_timer(sk, &sk->sk_timer, skbtrace_sk_timer_setup);
+
 	icsk->icsk_pending = icsk->icsk_ack.pending = 0;
 }
 
@@ -658,6 +668,7 @@ int inet_csk_listen_start(struct sock *sk, const int nr_table_entries)
 		sk_dst_reset(sk);
 		sk->sk_prot->hash(sk);
 
+		trace_icsk_connection(sk, TCP_LISTEN);
 		return 0;
 	}
 
