@@ -777,6 +777,13 @@ static struct ctl_table ipv4_table[] = {
 		.strategy	= sysctl_intvec,
 		.extra1		= &zero
 	},
+	{
+		.procname       = "tcp_friends",
+		.data           = &sysctl_tcp_friends,
+		.maxlen         = sizeof(int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec
+	},
 	{ .ctl_name = 0 }
 };
 
